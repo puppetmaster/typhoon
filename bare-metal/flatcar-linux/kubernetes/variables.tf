@@ -74,10 +74,10 @@ variable "worker_node_taints" {
 }
 
 variable "worker_bind_devices" {
-  type        = list(object({
+  type        = map(list(object({
     source = string
     target = string
-  }))
+  })))
   description = <<EOD
   List of devices to bind on kubelet container for direct storage usage
   [

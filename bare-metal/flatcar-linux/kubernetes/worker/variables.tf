@@ -72,6 +72,15 @@ variable "node_taints" {
   default     = []
 }
 
+variable "node_devices" {
+  type        = list(object({
+    source = string
+    target = string
+  }))
+  description = "List of devices object to bind with --device option"
+  default     = []
+}
+
 # optional
 
 variable "download_protocol" {
