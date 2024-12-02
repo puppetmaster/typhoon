@@ -51,6 +51,16 @@ variable "disk_size" {
   default     = 30
 }
 
+variable "disk_type" {
+  type        = string
+  description = "Type of managed disk"
+  default     = "pd-standard"
+  validation {
+    condition     = contains(["pd-standard", "pd-ssd", "pd-balanced"], var.disk_type)
+    error_message = "The disk_type must be pd-standard, pd-ssd or pd-balanced."
+  }
+}
+
 variable "preemptible" {
   type        = bool
   description = "If enabled, Compute Engine will terminate instances randomly within 24 hours"
@@ -96,13 +106,7 @@ variable "node_taints" {
   default     = []
 }
 
-# unofficial, undocumented, unsupported, temporary
-
-variable "cluster_domain_suffix" {
-  type        = string
-  description = "Queries for domains with the suffix will be answered by coredns. Default is cluster.local (e.g. foo.default.svc.cluster.local) "
-  default     = "cluster.local"
-}
+# advanced
 
 variable "accelerator_type" {
   type        = string
@@ -115,4 +119,3 @@ variable "accelerator_count" {
   default     = "0"
   description = "Number of compute engine accelerators"
 }
-

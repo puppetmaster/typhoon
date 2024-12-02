@@ -1,10 +1,10 @@
 # Google Cloud
 
-In this tutorial, we'll create a Kubernetes v1.28.3 cluster on Google Compute Engine with Flatcar Linux.
+In this tutorial, we'll create a Kubernetes v1.31.3 cluster on Google Compute Engine with Flatcar Linux.
 
 We'll declare a Kubernetes cluster using the Typhoon Terraform module. Then apply the changes to create a network, firewall rules, health checks, controller instances, worker managed instance group, load balancers, and TLS assets.
 
-Controller hosts are provisioned to run an `etcd-member` peer and a `kubelet` service. Worker hosts run a `kubelet` service. Controller nodes run `kube-apiserver`, `kube-scheduler`, `kube-controller-manager`, and `coredns`, while `kube-proxy` and `calico` (or `flannel`) run on every node. A generated `kubeconfig` provides `kubectl` access to the cluster.
+Controller hosts are provisioned to run an `etcd-member` peer and a `kubelet` service. Worker hosts run a `kubelet` service. Controller nodes run `kube-apiserver`, `kube-scheduler`, `kube-controller-manager`, and `coredns`, while `kube-proxy` and (`flannel`, `calico`, or `cilium`) run on every node. A generated `kubeconfig` provides `kubectl` access to the cluster.
 
 ## Requirements
 
@@ -73,7 +73,7 @@ Define a Kubernetes cluster using the module `google-cloud/flatcar-linux/kuberne
 
 ```tf
 module "yavin" {
-  source = "git::https://github.com/poseidon/typhoon//google-cloud/flatcar-linux/kubernetes?ref=v1.28.3"
+  source = "git::https://github.com/poseidon/typhoon//google-cloud/flatcar-linux/kubernetes?ref=v1.31.3"
 
   # Google Cloud
   cluster_name  = "yavin"
@@ -81,11 +81,11 @@ module "yavin" {
   dns_zone      = "example.com"
   dns_zone_name = "example-zone"
 
+  # instances
+  worker_count = 2
+
   # configuration
   ssh_authorized_key = "ssh-rsa AAAAB3Nz..."
-
-  # optional
-  worker_count = 2
 }
 ```
 
@@ -136,8 +136,9 @@ In 4-8 minutes, the Kubernetes cluster will be ready.
 
 ```
 resource "local_file" "kubeconfig-yavin" {
-  content  = module.yavin.kubeconfig-admin
-  filename = "/home/user/.kube/configs/yavin-config"
+  content         = module.yavin.kubeconfig-admin
+  filename        = "/home/user/.kube/configs/yavin-config"
+  file_permission = "0600"
 }
 ```
 
@@ -147,9 +148,9 @@ List nodes in the cluster.
 $ export KUBECONFIG=/home/user/.kube/configs/yavin-config
 $ kubectl get nodes
 NAME                                       ROLES    STATUS  AGE  VERSION
-yavin-controller-0.c.example-com.internal  <none>   Ready   6m   v1.28.3
-yavin-worker-jrbf.c.example-com.internal   <none>   Ready   5m   v1.28.3
-yavin-worker-mzdm.c.example-com.internal   <none>   Ready   5m   v1.28.3
+yavin-controller-0.c.example-com.internal  <none>   Ready   6m   v1.31.3
+yavin-worker-jrbf.c.example-com.internal   <none>   Ready   5m   v1.31.3
+yavin-worker-mzdm.c.example-com.internal   <none>   Ready   5m   v1.31.3
 ```
 
 List the pods.
@@ -157,9 +158,9 @@ List the pods.
 ```
 $ kubectl get pods --all-namespaces
 NAMESPACE     NAME                                      READY  STATUS    RESTARTS  AGE
-kube-system   calico-node-1cs8z                         2/2    Running   0         6m
-kube-system   calico-node-d1l5b                         2/2    Running   0         6m
-kube-system   calico-node-sp9ps                         2/2    Running   0         6m
+kube-system   cilium-1cs8z                              1/1    Running   0         6m
+kube-system   cilium-d1l5b                              1/1    Running   0         6m
+kube-system   cilium-sp9ps                              1/1    Running   0         6m
 kube-system   coredns-1187388186-dkh3o                  1/1    Running   0         6m
 kube-system   coredns-1187388186-zj5dl                  1/1    Running   0         6m
 kube-system   kube-apiserver-controller-0               1/1    Running   0         6m
@@ -209,25 +210,25 @@ resource "google_dns_managed_zone" "zone-for-clusters" {
 
 ### Optional
 
-| Name | Description | Default | Example |
-|:-----|:------------|:--------|:--------|
-| controller_count | Number of controllers (i.e. masters) | 1 | 3 |
-| worker_count | Number of workers | 1 | 3 |
-| controller_type | Machine type for controllers | "n1-standard-1" | See below |
-| worker_type | Machine type for workers | "n1-standard-1" | See below |
-| os_image | Flatcar Linux image for compute instances | "flatcar-stable" | flatcar-stable, flatcar-beta, flatcar-alpha |
-| disk_size | Size of the disk in GB | 30 | 100 |
-| worker_preemptible | If enabled, Compute Engine will terminate workers randomly within 24 hours | false | true |
-| controller_snippets | Controller Container Linux Config snippets | [] | [example](/advanced/customization/) |
-| worker_snippets | Worker Container Linux Config snippets | [] | [example](/advanced/customization/) |
-| networking | Choice of networking provider | "cilium" | "calico" or "cilium" or "flannel" |
-| pod_cidr | CIDR IPv4 range to assign to Kubernetes pods | "10.2.0.0/16" | "10.22.0.0/16" |
-| service_cidr | CIDR IPv4 range to assign to Kubernetes services | "10.3.0.0/16" | "10.3.0.0/24" |
-| worker_node_labels | List of initial worker node labels | [] | ["worker-pool=default"] |
+| Name                 | Description                                                                | Default          | Example                                     |
+|:---------------------|:---------------------------------------------------------------------------|:-----------------|:--------------------------------------------|
+| os_image             | Flatcar Linux image for compute instances                                  | "flatcar-stable" | flatcar-stable, flatcar-beta, flatcar-alpha |
+| controller_count     | Number of controllers (i.e. masters)                                       | 1                | 3                                           |
+| controller_type      | Machine type for controllers                                               | "n1-standard-1"  | See below                                   |
+| controller_disk_size | Controller disk size in GB                                                 | 30               | 20                                          |
+| worker_count         | Number of workers                                                          | 1                | 3                                           |
+| worker_type          | Machine type for workers                                                   | "n1-standard-1"  | See below                                   |
+| worker_disk_size     | Worker disk size in GB                                                     | 30               | 100                                         |
+| worker_preemptible   | If enabled, Compute Engine will terminate workers randomly within 24 hours | false            | true                                        |
+| controller_snippets  | Controller Container Linux Config snippets                                 | []               | [example](/advanced/customization/)         |
+| worker_snippets      | Worker Container Linux Config snippets                                     | []               | [example](/advanced/customization/)         |
+| networking           | Choice of networking provider                                              | "cilium"         | "calico" or "cilium" or "flannel"           |
+| pod_cidr             | CIDR IPv4 range to assign to Kubernetes pods                               | "10.2.0.0/16"    | "10.22.0.0/16"                              |
+| service_cidr         | CIDR IPv4 range to assign to Kubernetes services                           | "10.3.0.0/16"    | "10.3.0.0/24"                               |
+| worker_node_labels   | List of initial worker node labels                                         | []               | ["worker-pool=default"]                     |
 
 Check the list of valid [machine types](https://cloud.google.com/compute/docs/machine-types).
 
 #### Preemption
 
 Add `worker_preemptible = "true"` to allow worker nodes to be [preempted](https://cloud.google.com/compute/docs/instances/preemptible) at random, but pay [significantly](https://cloud.google.com/compute/pricing) less. Clusters tolerate stopping instances fairly well (reschedules pods, but cannot drain) and preemption provides a nice reward for running fault-tolerant cluster systems.`
-

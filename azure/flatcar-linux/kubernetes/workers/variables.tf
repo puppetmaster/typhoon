@@ -5,9 +5,9 @@ variable "name" {
 
 # Azure
 
-variable "region" {
+variable "location" {
   type        = string
-  description = "Must be set to the Azure Region of cluster"
+  description = "Must be set to the Azure location of cluster"
 }
 
 variable "resource_group_name" {
@@ -25,9 +25,12 @@ variable "security_group_id" {
   description = "Must be set to the `worker_security_group_id` output by cluster"
 }
 
-variable "backend_address_pool_id" {
-  type        = string
-  description = "Must be set to the `worker_backend_address_pool_id` output by cluster"
+variable "backend_address_pool_ids" {
+  type = object({
+    ipv4 = list(string)
+    ipv6 = list(string)
+  })
+  description = "Must be set to the `backend_address_pool_ids` output by cluster"
 }
 
 # instances
@@ -53,6 +56,24 @@ variable "os_image" {
     condition     = contains(["flatcar-stable", "flatcar-beta", "flatcar-alpha"], var.os_image)
     error_message = "The os_image must be flatcar-stable, flatcar-beta, or flatcar-alpha."
   }
+}
+
+variable "disk_type" {
+  type        = string
+  description = "Type of managed disk"
+  default     = "Standard_LRS"
+}
+
+variable "disk_size" {
+  type        = number
+  description = "Size of the managed disk in GB"
+  default     = 30
+}
+
+variable "ephemeral_disk" {
+  type        = bool
+  description = "Use ephemeral local disk instead of managed disk (requires vm_type with local storage)"
+  default     = false
 }
 
 variable "priority" {
@@ -116,12 +137,3 @@ variable "arch" {
     error_message = "The arch must be amd64 or arm64."
   }
 }
-
-# unofficial, undocumented, unsupported
-
-variable "cluster_domain_suffix" {
-  description = "Queries for domains with the suffix will be answered by coredns. Default is cluster.local (e.g. foo.default.svc.cluster.local) "
-  type        = string
-  default     = "cluster.local"
-}
-

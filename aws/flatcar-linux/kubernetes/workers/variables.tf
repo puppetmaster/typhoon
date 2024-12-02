@@ -69,6 +69,12 @@ variable "spot_price" {
   default     = 0
 }
 
+variable "cpu_credits" {
+  type        = string
+  description = "CPU burst credits mode (if applicable)"
+  default     = null
+}
+
 variable "target_groups" {
   type        = list(string)
   description = "Additional target group ARNs to which instances should be added"
@@ -102,12 +108,6 @@ EOD
   default     = "10.3.0.0/16"
 }
 
-variable "cluster_domain_suffix" {
-  type        = string
-  description = "Queries for domains with the suffix will be answered by coredns. Default is cluster.local (e.g. foo.default.svc.cluster.local) "
-  default     = "cluster.local"
-}
-
 variable "node_labels" {
   type        = list(string)
   description = "List of initial node labels"
@@ -128,7 +128,7 @@ variable "arch" {
   default     = "amd64"
 
   validation {
-    condition     = var.arch == "amd64" || var.arch == "arm64"
+    condition     = contains(["amd64", "arm64"], var.arch)
     error_message = "The arch must be amd64 or arm64."
   }
 }

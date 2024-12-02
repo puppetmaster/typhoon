@@ -17,30 +17,6 @@ variable "dns_zone_id" {
 
 # instances
 
-variable "controller_count" {
-  type        = number
-  description = "Number of controllers (i.e. masters)"
-  default     = 1
-}
-
-variable "worker_count" {
-  type        = number
-  description = "Number of workers"
-  default     = 1
-}
-
-variable "controller_type" {
-  type        = string
-  description = "EC2 instance type for controllers"
-  default     = "t3.small"
-}
-
-variable "worker_type" {
-  type        = string
-  description = "EC2 instance type for workers"
-  default     = "t3.small"
-}
-
 variable "os_image" {
   type        = string
   description = "AMI channel for a Container Linux derivative (flatcar-stable, flatcar-beta, flatcar-alpha)"
@@ -52,22 +28,76 @@ variable "os_image" {
   }
 }
 
-variable "disk_size" {
+variable "controller_count" {
+  type        = number
+  description = "Number of controllers (i.e. masters)"
+  default     = 1
+}
+
+variable "controller_type" {
+  type        = string
+  description = "EC2 instance type for controllers"
+  default     = "t3.small"
+}
+
+variable "controller_disk_size" {
   type        = number
   description = "Size of the EBS volume in GB"
   default     = 30
 }
 
-variable "disk_type" {
+variable "controller_disk_type" {
   type        = string
   description = "Type of the EBS volume (e.g. standard, gp2, gp3, io1)"
   default     = "gp3"
 }
 
-variable "disk_iops" {
+variable "controller_disk_iops" {
   type        = number
   description = "IOPS of the EBS volume (e.g. 3000)"
   default     = 3000
+}
+
+variable "controller_cpu_credits" {
+  type        = string
+  description = "CPU credits mode (if using a burstable instance type)"
+  default     = null
+}
+
+variable "worker_count" {
+  type        = number
+  description = "Number of workers"
+  default     = 1
+}
+
+variable "worker_type" {
+  type        = string
+  description = "EC2 instance type for workers"
+  default     = "t3.small"
+}
+
+variable "worker_disk_size" {
+  type        = number
+  description = "Size of the EBS volume in GB"
+  default     = 30
+}
+
+variable "worker_disk_type" {
+  type        = string
+  description = "Type of the EBS volume (e.g. standard, gp2, gp3, io1)"
+  default     = "gp3"
+}
+
+variable "worker_disk_iops" {
+  type        = number
+  description = "IOPS of the EBS volume (e.g. 3000)"
+  default     = 3000
+}
+
+variable "worker_cpu_credits" {
+  type        = string
+  description = "CPU credits mode (if using a burstable instance type)"
+  default     = null
 }
 
 variable "worker_price" {
@@ -134,40 +164,31 @@ EOD
   default     = "10.3.0.0/16"
 }
 
-variable "enable_reporting" {
-  type        = bool
-  description = "Enable usage or analytics reporting to upstreams (Calico)"
-  default     = false
-}
-
-variable "enable_aggregation" {
-  type        = bool
-  description = "Enable the Kubernetes Aggregation Layer"
-  default     = true
-}
-
 variable "worker_node_labels" {
   type        = list(string)
   description = "List of initial worker node labels"
   default     = []
 }
 
-# unofficial, undocumented, unsupported
+# advanced
 
-variable "cluster_domain_suffix" {
+variable "controller_arch" {
   type        = string
-  description = "Queries for domains with the suffix will be answered by CoreDNS. Default is cluster.local (e.g. foo.default.svc.cluster.local)"
-  default     = "cluster.local"
+  description = "Controller node(s) architecture (amd64 or arm64)"
+  default     = "amd64"
+  validation {
+    condition     = contains(["amd64", "arm64"], var.controller_arch)
+    error_message = "The controller_arch must be amd64 or arm64."
+  }
 }
 
-variable "arch" {
+variable "worker_arch" {
   type        = string
-  description = "Container architecture (amd64 or arm64)"
+  description = "Worker node(s) architecture (amd64 or arm64)"
   default     = "amd64"
-
   validation {
-    condition     = var.arch == "amd64" || var.arch == "arm64"
-    error_message = "The arch must be amd64 or arm64."
+    condition     = contains(["amd64", "arm64"], var.worker_arch)
+    error_message = "The worker_arch must be amd64 or arm64."
   }
 }
 
@@ -175,4 +196,20 @@ variable "daemonset_tolerations" {
   type        = list(string)
   description = "List of additional taint keys kube-system DaemonSets should tolerate (e.g. ['custom-role', 'gpu-role'])"
   default     = []
+}
+
+variable "components" {
+  description = "Configure pre-installed cluster components"
+  # Component configs are passed through to terraform-render-bootstrap,
+  # which handles type enforcement and defines defaults
+  # https://github.com/poseidon/terraform-render-bootstrap/blob/main/variables.tf#L95
+  type = object({
+    enable     = optional(bool)
+    coredns    = optional(map(any))
+    kube_proxy = optional(map(any))
+    flannel    = optional(map(any))
+    calico     = optional(map(any))
+    cilium     = optional(map(any))
+  })
+  default = null
 }

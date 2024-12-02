@@ -8,26 +8,23 @@ locals {
 
 # Discrete DNS records for each controller's private IPv4 for etcd usage
 resource "azurerm_dns_a_record" "etcds" {
-  count               = var.controller_count
-  resource_group_name = var.dns_zone_group
+  count = var.controller_count
 
   # DNS Zone name where record should be created
-  zone_name = var.dns_zone
-
+  zone_name           = var.dns_zone
+  resource_group_name = var.dns_zone_group
   # DNS record
   name = format("%s-etcd%d", var.cluster_name, count.index)
   ttl  = 300
-
   # private IPv4 address for etcd
-  records = [azurerm_network_interface.controllers.*.private_ip_address[count.index]]
+  records = [azurerm_network_interface.controllers[count.index].private_ip_address]
 }
 
 # Controller availability set to spread controllers
 resource "azurerm_availability_set" "controllers" {
-  resource_group_name = azurerm_resource_group.cluster.name
-
   name                         = "${var.cluster_name}-controllers"
-  location                     = var.region
+  resource_group_name          = azurerm_resource_group.cluster.name
+  location                     = var.location
   platform_fault_domain_count  = 2
   platform_update_domain_count = 4
   managed                      = true
@@ -35,31 +32,35 @@ resource "azurerm_availability_set" "controllers" {
 
 # Controller instances
 resource "azurerm_linux_virtual_machine" "controllers" {
-  count               = var.controller_count
-  resource_group_name = azurerm_resource_group.cluster.name
+  count = var.controller_count
 
   name                = "${var.cluster_name}-controller-${count.index}"
-  location            = var.region
+  resource_group_name = azurerm_resource_group.cluster.name
+  location            = var.location
   availability_set_id = azurerm_availability_set.controllers.id
-
-  size        = var.controller_type
-  custom_data = base64encode(data.ct_config.controllers.*.rendered[count.index])
+  size                = var.controller_type
 
   # storage
   source_image_id = var.os_image
   os_disk {
     name                 = "${var.cluster_name}-controller-${count.index}"
+    storage_account_type = var.controller_disk_type
+    disk_size_gb         = var.controller_disk_size
     caching              = "None"
-    disk_size_gb         = var.disk_size
-    storage_account_type = "Premium_LRS"
   }
 
   # network
   network_interface_ids = [
-    azurerm_network_interface.controllers.*.id[count.index]
+    azurerm_network_interface.controllers[count.index].id
   ]
 
-  # Azure requires setting admin_ssh_key, though Ignition custom_data handles it too
+  # boot
+  custom_data = base64encode(data.ct_config.controllers[count.index].rendered)
+  boot_diagnostics {
+    # defaults to a managed storage account
+  }
+
+  # Azure requires an RSA admin_ssh_key
   admin_username = "core"
   admin_ssh_key {
     username   = "core"
@@ -74,31 +75,52 @@ resource "azurerm_linux_virtual_machine" "controllers" {
   }
 }
 
-# Controller public IPv4 addresses
-resource "azurerm_public_ip" "controllers" {
-  count               = var.controller_count
-  resource_group_name = azurerm_resource_group.cluster.name
+# Controller node public IPv4 addresses
+resource "azurerm_public_ip" "controllers-ipv4" {
+  count = var.controller_count
 
-  name              = "${var.cluster_name}-controller-${count.index}"
-  location          = azurerm_resource_group.cluster.location
-  sku               = "Standard"
-  allocation_method = "Static"
+  name                = "${var.cluster_name}-controller-${count.index}-ipv4"
+  resource_group_name = azurerm_resource_group.cluster.name
+  location            = azurerm_resource_group.cluster.location
+  ip_version          = "IPv4"
+  sku                 = "Standard"
+  allocation_method   = "Static"
 }
 
-# Controller NICs with public and private IPv4
-resource "azurerm_network_interface" "controllers" {
-  count               = var.controller_count
-  resource_group_name = azurerm_resource_group.cluster.name
+# Controller node public IPv6 addresses
+resource "azurerm_public_ip" "controllers-ipv6" {
+  count = var.controller_count
 
-  name     = "${var.cluster_name}-controller-${count.index}"
-  location = azurerm_resource_group.cluster.location
+  name                = "${var.cluster_name}-controller-${count.index}-ipv6"
+  resource_group_name = azurerm_resource_group.cluster.name
+  location            = azurerm_resource_group.cluster.location
+  ip_version          = "IPv6"
+  sku                 = "Standard"
+  allocation_method   = "Static"
+}
+
+# Controllers' network interfaces
+resource "azurerm_network_interface" "controllers" {
+  count = var.controller_count
+
+  name                = "${var.cluster_name}-controller-${count.index}"
+  resource_group_name = azurerm_resource_group.cluster.name
+  location            = azurerm_resource_group.cluster.location
 
   ip_configuration {
-    name                          = "ip0"
+    name                          = "ipv4"
+    primary                       = true
     subnet_id                     = azurerm_subnet.controller.id
     private_ip_address_allocation = "Dynamic"
-    # instance public IPv4
-    public_ip_address_id = azurerm_public_ip.controllers.*.id[count.index]
+    private_ip_address_version    = "IPv4"
+    public_ip_address_id          = azurerm_public_ip.controllers-ipv4[count.index].id
+  }
+  ip_configuration {
+    name                          = "ipv6"
+    subnet_id                     = azurerm_subnet.controller.id
+    private_ip_address_allocation = "Dynamic"
+    private_ip_address_version    = "IPv6"
+    public_ip_address_id          = azurerm_public_ip.controllers-ipv6[count.index].id
   }
 }
 
@@ -111,12 +133,20 @@ resource "azurerm_network_interface_security_group_association" "controllers" {
 }
 
 # Associate controller network interface with controller backend address pool
-resource "azurerm_network_interface_backend_address_pool_association" "controllers" {
+resource "azurerm_network_interface_backend_address_pool_association" "controllers-ipv4" {
   count = var.controller_count
 
   network_interface_id    = azurerm_network_interface.controllers[count.index].id
-  ip_configuration_name   = "ip0"
-  backend_address_pool_id = azurerm_lb_backend_address_pool.controller.id
+  ip_configuration_name   = "ipv4"
+  backend_address_pool_id = azurerm_lb_backend_address_pool.controller-ipv4.id
+}
+
+resource "azurerm_network_interface_backend_address_pool_association" "controllers-ipv6" {
+  count = var.controller_count
+
+  network_interface_id    = azurerm_network_interface.controllers[count.index].id
+  ip_configuration_name   = "ipv6"
+  backend_address_pool_id = azurerm_lb_backend_address_pool.controller-ipv6.id
 }
 
 # Fedora CoreOS controllers
@@ -133,7 +163,6 @@ data "ct_config" "controllers" {
     kubeconfig             = indent(10, module.bootstrap.kubeconfig-kubelet)
     ssh_authorized_key     = var.ssh_authorized_key
     cluster_dns_service_ip = cidrhost(var.service_cidr, 10)
-    cluster_domain_suffix  = var.cluster_domain_suffix
   })
   strict   = true
   snippets = var.controller_snippets

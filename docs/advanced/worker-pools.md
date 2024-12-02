@@ -19,7 +19,7 @@ Create a cluster following the AWS [tutorial](../flatcar-linux/aws.md#cluster). 
 
     ```tf
     module "tempest-worker-pool" {
-      source = "git::https://github.com/poseidon/typhoon//aws/fedora-coreos/kubernetes/workers?ref=v1.28.3"
+      source = "git::https://github.com/poseidon/typhoon//aws/fedora-coreos/kubernetes/workers?ref=v1.31.3"
 
       # AWS
       vpc_id          = module.tempest.vpc_id
@@ -42,7 +42,7 @@ Create a cluster following the AWS [tutorial](../flatcar-linux/aws.md#cluster). 
 
     ```tf
     module "tempest-worker-pool" {
-      source = "git::https://github.com/poseidon/typhoon//aws/flatcar-linux/kubernetes/workers?ref=v1.28.3"
+      source = "git::https://github.com/poseidon/typhoon//aws/flatcar-linux/kubernetes/workers?ref=v1.31.3"
 
       # AWS
       vpc_id          = module.tempest.vpc_id
@@ -111,14 +111,14 @@ Create a cluster following the Azure [tutorial](../flatcar-linux/azure.md#cluste
 
     ```tf
     module "ramius-worker-pool" {
-      source = "git::https://github.com/poseidon/typhoon//azure/fedora-coreos/kubernetes/workers?ref=v1.28.3"
+      source = "git::https://github.com/poseidon/typhoon//azure/fedora-coreos/kubernetes/workers?ref=v1.31.3"
 
       # Azure
-      region                  = module.ramius.region
-      resource_group_name     = module.ramius.resource_group_name
-      subnet_id               = module.ramius.subnet_id
-      security_group_id       = module.ramius.security_group_id
-      backend_address_pool_id = module.ramius.backend_address_pool_id
+      location                 = module.ramius.location
+      resource_group_name      = module.ramius.resource_group_name
+      subnet_id                = module.ramius.subnet_id
+      security_group_id        = module.ramius.security_group_id
+      backend_address_pool_ids = module.ramius.backend_address_pool_ids
 
       # configuration
       name               = "ramius-spot"
@@ -127,7 +127,7 @@ Create a cluster following the Azure [tutorial](../flatcar-linux/azure.md#cluste
 
       # optional
       worker_count = 2
-      vm_type      = "Standard_F4"
+      vm_type      = "Standard_D2as_v5"
       priority     = "Spot"
       os_image     = "/subscriptions/some/path/Microsoft.Compute/images/fedora-coreos-31.20200323.3.2"
     }
@@ -137,14 +137,14 @@ Create a cluster following the Azure [tutorial](../flatcar-linux/azure.md#cluste
 
     ```tf
     module "ramius-worker-pool" {
-      source = "git::https://github.com/poseidon/typhoon//azure/flatcar-linux/kubernetes/workers?ref=v1.28.3"
+      source = "git::https://github.com/poseidon/typhoon//azure/flatcar-linux/kubernetes/workers?ref=v1.31.3"
 
       # Azure
-      region                  = module.ramius.region
-      resource_group_name     = module.ramius.resource_group_name
-      subnet_id               = module.ramius.subnet_id
-      security_group_id       = module.ramius.security_group_id
-      backend_address_pool_id = module.ramius.backend_address_pool_id
+      location                 = module.ramius.location
+      resource_group_name      = module.ramius.resource_group_name
+      subnet_id                = module.ramius.subnet_id
+      security_group_id        = module.ramius.security_group_id
+      backend_address_pool_ids = module.ramius.backend_address_pool_ids
 
       # configuration
       name               = "ramius-spot"
@@ -153,7 +153,7 @@ Create a cluster following the Azure [tutorial](../flatcar-linux/azure.md#cluste
 
       # optional
       worker_count = 2
-      vm_type      = "Standard_F4"
+      vm_type      = "Standard_D2as_v5"
       priority     = "Spot"
       os_image     = "flatcar-beta"
     }
@@ -180,7 +180,7 @@ The Azure internal `workers` module supports a number of [variables](https://git
 | resource_group_name | Must be set to `resource_group_name` output by cluster | module.cluster.resource_group_name |
 | subnet_id | Must be set to `subnet_id` output by cluster | module.cluster.subnet_id |
 | security_group_id | Must be set to `security_group_id` output by cluster | module.cluster.security_group_id |
-| backend_address_pool_id | Must be set to `backend_address_pool_id` output by cluster | module.cluster.backend_address_pool_id |
+| backend_address_pool_ids | Must be set to `backend_address_pool_ids` output by cluster | module.cluster.backend_address_pool_ids |
 | kubeconfig | Must be set to `kubeconfig` output by cluster | module.cluster.kubeconfig |
 | ssh_authorized_key | SSH public key for user 'core' | "ssh-ed25519 AAAAB3NZ..." |
 
@@ -207,7 +207,7 @@ Create a cluster following the Google Cloud [tutorial](../flatcar-linux/google-c
 
     ```tf
     module "yavin-worker-pool" {
-      source = "git::https://github.com/poseidon/typhoon//google-cloud/fedora-coreos/kubernetes/workers?ref=v1.28.3"
+      source = "git::https://github.com/poseidon/typhoon//google-cloud/fedora-coreos/kubernetes/workers?ref=v1.31.3"
 
       # Google Cloud
       region       = "europe-west2"
@@ -231,7 +231,7 @@ Create a cluster following the Google Cloud [tutorial](../flatcar-linux/google-c
 
     ```tf
     module "yavin-worker-pool" {
-      source = "git::https://github.com/poseidon/typhoon//google-cloud/flatcar-linux/kubernetes/workers?ref=v1.28.3"
+      source = "git::https://github.com/poseidon/typhoon//google-cloud/flatcar-linux/kubernetes/workers?ref=v1.31.3"
 
       # Google Cloud
       region       = "europe-west2"
@@ -262,11 +262,11 @@ Verify a managed instance group of workers joins the cluster within a few minute
 ```
 $ kubectl get nodes
 NAME                                             STATUS   AGE    VERSION
-yavin-controller-0.c.example-com.internal        Ready    6m     v1.28.3
-yavin-worker-jrbf.c.example-com.internal         Ready    5m     v1.28.3
-yavin-worker-mzdm.c.example-com.internal         Ready    5m     v1.28.3
-yavin-16x-worker-jrbf.c.example-com.internal     Ready    3m     v1.28.3
-yavin-16x-worker-mzdm.c.example-com.internal     Ready    3m     v1.28.3
+yavin-controller-0.c.example-com.internal        Ready    6m     v1.31.3
+yavin-worker-jrbf.c.example-com.internal         Ready    5m     v1.31.3
+yavin-worker-mzdm.c.example-com.internal         Ready    5m     v1.31.3
+yavin-16x-worker-jrbf.c.example-com.internal     Ready    3m     v1.31.3
+yavin-16x-worker-mzdm.c.example-com.internal     Ready    3m     v1.31.3
 ```
 
 ### Variables

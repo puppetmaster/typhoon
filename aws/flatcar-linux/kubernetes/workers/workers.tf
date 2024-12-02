@@ -3,16 +3,14 @@ resource "aws_autoscaling_group" "workers" {
   name = "${var.name}-worker"
 
   # count
-  desired_capacity          = var.worker_count
-  min_size                  = var.worker_count
-  max_size                  = var.worker_count + 2
-  default_cooldown          = 30
-  health_check_grace_period = 30
+  desired_capacity = var.worker_count
+  min_size         = var.worker_count
+  max_size         = var.worker_count + 2
 
   # network
   vpc_zone_identifier = var.subnet_ids
 
-  # template
+  # instance template
   launch_template {
     id      = aws_launch_template.worker.id
     version = aws_launch_template.worker.latest_version
@@ -32,6 +30,10 @@ resource "aws_autoscaling_group" "workers" {
       min_healthy_percentage = 90
     }
   }
+  # Grace period before checking new instance's health
+  health_check_grace_period = 30
+  # Cooldown period between scaling activities
+  default_cooldown = 30
 
   lifecycle {
     # override the default destroy and replace update behavior
@@ -56,11 +58,6 @@ resource "aws_launch_template" "worker" {
   name_prefix   = "${var.name}-worker"
   image_id      = local.ami_id
   instance_type = var.instance_type
-  monitoring {
-    enabled = false
-  }
-
-  user_data = sensitive(base64encode(data.ct_config.worker.rendered))
 
   # storage
   ebs_optimized = true
@@ -76,9 +73,26 @@ resource "aws_launch_template" "worker" {
   }
 
   # network
-  vpc_security_group_ids = var.security_groups
+  network_interfaces {
+    associate_public_ip_address = true
+    security_groups             = var.security_groups
+  }
 
-  # spot
+  # boot
+  user_data = sensitive(base64encode(data.ct_config.worker.rendered))
+
+  # metadata
+  metadata_options {
+    http_tokens = "optional"
+  }
+  monitoring {
+    enabled = false
+  }
+
+  # cost
+  credit_specification {
+    cpu_credits = var.cpu_credits
+  }
   dynamic "instance_market_options" {
     for_each = var.spot_price > 0 ? [1] : []
     content {
@@ -102,7 +116,6 @@ data "ct_config" "worker" {
     kubeconfig             = indent(10, var.kubeconfig)
     ssh_authorized_key     = var.ssh_authorized_key
     cluster_dns_service_ip = cidrhost(var.service_cidr, 10)
-    cluster_domain_suffix  = var.cluster_domain_suffix
     node_labels            = join(",", var.node_labels)
     node_taints            = join(",", var.node_taints)
   })

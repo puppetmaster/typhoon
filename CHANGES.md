@@ -4,6 +4,214 @@ Notable changes between versions.
 
 ## Latest
 
+## v1.31.3
+
+* Kubernetes [v1.31.2](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.31.md#v1312)
+* Update CoreDNS from v1.11.3 to v1.11.4
+* Update Cilium from v1.16.3 to [v1.16.4](https://github.com/cilium/cilium/releases/tag/v1.16.4)
+
+### Deprecations
+
+* Plan to drop support for using Calico CNI, recommend everyone use the Cilium default
+
+## v1.31.2
+
+* Kubernetes [v1.31.2](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.31.md#v1312)
+* Update Cilium from v1.16.1 to [v1.16.3](https://github.com/cilium/cilium/releases/tag/v1.16.3)
+* Update flannel from v0.25.6 to [v0.26.0](https://github.com/flannel-io/flannel/releases/tag/v0.26.0)
+
+## v1.31.1
+
+* Kubernetes [v1.31.1](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.31.md#v1311)
+* Update flannel from v0.25.5 to [v0.25.6](https://github.com/flannel-io/flannel/releases/tag/v0.25.6)
+
+### Google
+
+* Add `controller_disk_type` and `worker_disk_type` variables ([#1513](https://github.com/poseidon/typhoon/pull/1513))
+* Add explicit `region` field to regional worker instance templates ([#1524](https://github.com/poseidon/typhoon/pull/1524))
+
+## v1.31.0
+
+* Kubernetes [v1.31.0](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.31.md#v1310)
+* Use Cilium kube-proxy replacement mode when `cilium` networking is chosen ([#1501](https://github.com/poseidon/typhoon/pull/1501))
+* Fix invalid flannel-cni container image for those using `flannel` networking ([#1497](https://github.com/poseidon/typhoon/pull/1497))
+
+### AWS
+
+* Use EC2 resource-based hostnames instead of IP-based hostnames ([#1499](https://github.com/poseidon/typhoon/pull/1499))
+  * The Amazon DNS server can resolve A and AAAA queries to IPv4 and IPv6 node addresses
+* Tag controller node EBS volumes with a name based on the controller node name
+
+### Google
+
+* Use `google_compute_region_instance_template` instead of `google_compute_instance_template`
+  * Google's regional instance template metadata is kept in the associated region for greater resiliency. The "global" instance templates were kept in a single region
+
+## v1.30.4
+
+* Kubernetes [v1.30.4](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.30.md#v1304)
+* Update Cilium from v1.15.7 to [v1.16.1](https://github.com/cilium/cilium/releases/tag/v1.16.1)
+* Update CoreDNS from v1.11.1 to v1.11.3
+* Remove `enable_aggregation` variable for Kubernetes Aggregation Layer, always set to true
+* Remove `cluster_domain_suffix` variable, always use "cluster.local"
+* Remove `enable_reporting` variable for analytics, always set to false
+
+## v1.30.3
+
+* Kubernetes [v1.30.3](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.30.md#v1303)
+* Update Cilium from v1.15.6 to [v1.15.7](https://github.com/cilium/cilium/releases/tag/v1.15.7)
+* Update flannel from v0.25.4 to [v0.25.5](https://github.com/flannel-io/flannel/releases/tag/v0.25.5)
+
+### AWS
+
+* Configure controller and worker disks ([#1482](https://github.com/poseidon/typhoon/pull/1482))
+  * Add `controller_disk_type`, `controller_disk_size`, and `controller_disk_iops` variables
+  * Add `worker_disk_type`, `worker_disk_size`, and `worker_disk_iops` variables
+  * Remove `disk_type`, `disk_size`, and `disk_iops` variables
+  * Fix propagating settings to worker disks, previously ignored
+* Configure CPU pricing model for burstable instance types ([#1482](https://github.com/poseidon/typhoon/pull/1482))
+  * Add `controller_cpu_credits` and `worker_cpu_credits` variables (`standard` or `unlimited`)
+* Configure controller or worker instance architecture ([#1485](https://github.com/poseidon/typhoon/pull/1485))
+  * Add `controller_arch` and `worker_arch` variables (`amd64` or `arm64`)
+  * Remove `arch` variable
+
+```diff
+module "cluster" {
+  ...
+- arch      = "amd64"
+- disk_type = "gp3"
+- disk_size = 30
+- disk_iops = 3000
+
++ controller_arch        = "amd64"
++ controller_disk_size   = 15
++ controller_cpu_credits = "standard"
++ worker_arch            = "amd64"
++ worker_disk_size       = 22
++ worker_cpu_credits     = "unlimited"
+}
+```
+
+### Azure
+
+* Configure the virtual network and subnets with IPv6 private address space
+  * Change `host_cidr` variable (string) to a `network_cidr` object with `ipv4` and `ipv6` fields that list CIDR strings. Leave the variable unset to use the defaults. (**breaking**)
+* Add support for dual-stack Kubernetes Ingress Load Balancing
+  * Add a public IPv6 frontend, 80/443 rules, and a worker-ipv6 backend pool
+  * Change the `controller_address_prefixes` output from a list of strings to an object with `ipv4` and `ipv6` fields. Most Azure resources can't accept a mix, so these are split out (**breaking**)
+  * Change the `worker_address_prefixes` output from a list of strings to an object with `ipv4` and `ipv6` fields. Most Azure resources can't accept a mix, so these are split out (**breaking**)
+  * Change the `backend_address_pool_id` output (and worker module input) from a string to an object with `ipv4` and `ipv6` fields that list ids (**breaking**)
+* Configure nodes to have outbound IPv6 internet connectivity (analogous to IPv4 SNAT)
+  * Configure controller nodes to have a public IPv6 address
+  * Configure worker nodes to use outbound rules and the load balancer for SNAT
+* Extend network security rules to allow IPv6 traffic, analogous to IPv4
+* Rename `region` variable to `location` to align with Azure platform conventions ([#1469](https://github.com/poseidon/typhoon/pull/1469))
+* Change worker pools from uniform to flexible orchestration mode ([#1473](https://github.com/poseidon/typhoon/pull/1473))
+* Add options to allow workers nodes to use ephemeral local disks ([#1473](https://github.com/poseidon/typhoon/pull/1473))
+  * Add `controller_disk_type` and `controller_disk_size` variables
+  * Add `worker_disk_type`, `worker_disk_size`, and `worker_ephemeral_disk` variables
+* Reduce the number of public IPv4 addresses needed for the Azure load balancer ([#1470](https://github.com/poseidon/typhoon/pull/1470))
+* Configure controller or worker instance architecture for Flatcar Linux ([#1485](https://github.com/poseidon/typhoon/pull/1485))
+  * Add `controller_arch` and `worker_arch` variables (`amd64` or `arm64`)
+  * Remove `arch` variable
+
+```diff
+module "cluster" {
+  ...
+- region = "centralus"
++ location = "centralus"
+  # optional
+- host_cidr = "10.0.0.0/16"
++ network_cidr = {
++   ipv4 = ["10.0.0.0/16"]
++ }
+
+  # instances
++ controller_disk_type = "StandardSSD_LRS"
++ worker_ephemeral_disk = true
+}
+```
+
+### Google Cloud
+
+* Allow configuring controller and worker disks ([#1486](https://github.com/poseidon/typhoon/pull/1486))
+  * Add `controller_disk_size` and `worker_disk_size` variables
+  * Remove `disk_size` variable
+
+## v1.30.2
+
+* Kubernetes [v1.30.2](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.30.md#v1302)
+* Update CoreDNS from v1.9.4 to v1.11.1
+* Update Cilium from v1.15.5 to [v1.15.6](https://github.com/cilium/cilium/releases/tag/v1.15.6)
+* Update flannel from v0.25.1 to [v0.25.4](https://github.com/flannel-io/flannel/releases/tag/v0.25.4)
+
+## v1.30.1
+
+* Kubernetes [v1.30.1](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.30.md#v1301)
+* Add firewall rules and security group rules for Cilium and Hubble metrics ([#1449](https://github.com/poseidon/typhoon/pull/1449))
+* Update Cilium from v1.15.3 to [v1.15.5](https://github.com/cilium/cilium/releases/tag/v1.15.5)
+* Update flannel from v0.24.4 to [v0.25.1](https://github.com/flannel-io/flannel/releases/tag/v0.25.1)
+* Introduce `components` variabe to enable/disable/configure pre-installed components ([#1453](https://github.com/poseidon/typhoon/pull/1453))
+* Add Terraform modules for `coredns`, `cilium`, and `flannel` components
+
+### Azure
+
+* Add `controller_security_group_name` output for adding custom security rules ([#1450](https://github.com/poseidon/typhoon/pull/1450))
+* Add `controller_address_prefixes` output for adding custom security rules ([#1450](https://github.com/poseidon/typhoon/pull/1450))
+
+## v1.30.0
+
+* Kubernetes [v1.30.0](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.30.md#v1300)
+* Update etcd from v3.5.12 to [v3.5.13](https://github.com/etcd-io/etcd/releases/tag/v3.5.13)
+* Update Cilium from v1.15.2 to [v1.15.3](https://github.com/cilium/cilium/releases/tag/v1.15.3)
+* Update Calico from v3.27.2 to [v3.27.3](https://github.com/projectcalico/calico/releases/tag/v3.27.3)
+
+## v1.29.3
+
+* Kubernetes [v1.29.3](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.29.md#v1293)
+* Update Cilium from v1.15.1 to [v1.15.2](https://github.com/cilium/cilium/releases/tag/v1.15.2)
+* Update flannel from v0.24.2 to [v0.24.4](https://github.com/flannel-io/flannel/releases/tag/v0.24.4)
+
+## v1.29.2
+
+* Kubernetes [v1.29.2](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.29.md#v1292)
+* Update etcd from v3.5.10 to [v3.5.12](https://github.com/etcd-io/etcd/releases/tag/v3.5.12)
+* Update Cilium from v1.14.3 to [v1.15.1](https://github.com/cilium/cilium/releases/tag/v1.15.1)
+* Update Calico from v3.26.3 to [v3.27.2](https://github.com/projectcalico/calico/releases/tag/v3.27.2)
+  * Fix upstream incompatibility with Fedora CoreOS ([calico#8372](https://github.com/projectcalico/calico/issues/8372))
+* Update flannel from v0.22.2 to [v0.24.2](https://github.com/flannel-io/flannel/releases/tag/v0.24.2)
+* Add an `install_container_networking` variable (default `true`) ([#1421](https://github.com/poseidon/typhoon/pull/1421))
+  * When `true`, the chosen container `networking` provider is installed during cluster bootstrap
+  * Set `false` to self-manage the container networking provider. This allows flannel, Calico, or Cilium
+  to be managed via Terraform (like any other Kubernetes resources). Nodes will be NotReady until you
+  apply the self-managed container networking provider. This may become the default in future.
+  * Continue to set `networking` to one of the three supported container networking providers. Most
+  require custom firewall / security policies be present across nodes so they have some infra tie-ins.
+
+## v1.29.1
+
+* Kubernetes [v1.29.1](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.29.md#v1291)
+
+### AWS
+
+* Continue to support AWS IMDSv1 ([#1412](https://github.com/poseidon/typhoon/pull/1412))
+
+### Known Issues
+
+* Calico and Fedora CoreOS cannot be used together currently ([calico#8372](https://github.com/projectcalico/calico/issues/8372))
+
+## v1.29.0
+
+* Kubernetes [v1.29.0](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.29.md#v1290)
+
+### Known Issues
+
+* Calico and Fedora CoreOS cannot be used together currently ([calico#8372](https://github.com/projectcalico/calico/issues/8372))
+
+## v1.28.4
+
+* Kubernetes [v1.28.4](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.28.md#v1284)
+
 ## v1.28.3
 
 * Kubernetes [v1.28.3](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.28.md#v1283)

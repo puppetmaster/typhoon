@@ -43,7 +43,8 @@ resource "google_compute_instance" "controllers" {
 
     initialize_params {
       image = data.google_compute_image.fedora-coreos.self_link
-      size  = var.disk_size
+      size  = var.controller_disk_size
+      type  = var.controller_disk_type
     }
   }
 
@@ -55,8 +56,9 @@ resource "google_compute_instance" "controllers" {
     }
   }
 
-  can_ip_forward = true
-  tags           = ["${var.cluster_name}-controller"]
+  can_ip_forward            = true
+  allow_stopping_for_update = true
+  tags                      = ["${var.cluster_name}-controller"]
 
   lifecycle {
     ignore_changes = [
@@ -80,7 +82,6 @@ data "ct_config" "controllers" {
     kubeconfig             = indent(10, module.bootstrap.kubeconfig-kubelet)
     ssh_authorized_key     = var.ssh_authorized_key
     cluster_dns_service_ip = cidrhost(var.service_cidr, 10)
-    cluster_domain_suffix  = var.cluster_domain_suffix
   })
   strict   = true
   snippets = var.controller_snippets

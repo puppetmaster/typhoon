@@ -1,10 +1,10 @@
 # Azure
 
-In this tutorial, we'll create a Kubernetes v1.28.3 cluster on Azure with Fedora CoreOS.
+In this tutorial, we'll create a Kubernetes v1.31.3 cluster on Azure with Fedora CoreOS.
 
 We'll declare a Kubernetes cluster using the Typhoon Terraform module. Then apply the changes to create a resource group, virtual network, subnets, security groups, controller availability set, worker scale set, load balancer, and TLS assets.
 
-Controller hosts are provisioned to run an `etcd-member` peer and a `kubelet` service. Worker hosts run a `kubelet` service. Controller nodes run `kube-apiserver`, `kube-scheduler`, `kube-controller-manager`, and `coredns`, while `kube-proxy` and `calico` (or `flannel`) run on every node. A generated `kubeconfig` provides `kubectl` access to the cluster.
+Controller hosts are provisioned to run an `etcd-member` peer and a `kubelet` service. Worker hosts run a `kubelet` service. Controller nodes run `kube-apiserver`, `kube-scheduler`, `kube-controller-manager`, and `coredns`, while `kube-proxy` and (`flannel`, `calico`, or `cilium`) run on every node. A generated `kubeconfig` provides `kubectl` access to the cluster.
 
 ## Requirements
 
@@ -67,15 +67,15 @@ Fedora CoreOS publishes images for Azure, but does not yet upload them. Azure al
 [Download](https://getfedora.org/en/coreos/download?tab=cloud_operators&stream=stable) a Fedora CoreOS Azure VHD image, decompress it, and upload it to an Azure storage account container (i.e. bucket) via the UI (quite slow).
 
 ```
-xz -d fedora-coreos-36.20220716.3.1-azure.x86_64.vhd.xz
+xz -d fedora-coreos-40.20240616.3.0-azure.x86_64.vhd.xz
 ```
 
 Create an Azure disk (note disk ID) and create an Azure image from it (note image ID).
 
 ```
-az disk create --name fedora-coreos-36.20220716.3.1 -g GROUP --source https://BUCKET.blob.core.windows.net/fedora-coreos/fedora-coreos-36.20220716.3.1-azure.x86_64.vhd
+az disk create --name fedora-coreos-40.20240616.3.0 -g GROUP --source https://BUCKET.blob.core.windows.net/images/fedora-coreos-40.20240616.3.0-azure.x86_64.vhd
 
-az image create --name fedora-coreos-36.20220716.3.1 -g GROUP --os-type=linux --source /subscriptions/some/path/providers/Microsoft.Compute/disks/fedora-coreos-36.20220716.3.1
+az image create --name fedora-coreos-40.20240616.3.0 -g GROUP --os-type linux --source /subscriptions/some/path/Microsoft.Compute/disks/fedora-coreos-40.20240616.3.0
 ```
 
 Set the [os_image](#variables) in the next step.
@@ -86,21 +86,23 @@ Define a Kubernetes cluster using the module `azure/fedora-coreos/kubernetes`.
 
 ```tf
 module "ramius" {
-  source = "git::https://github.com/poseidon/typhoon//azure/fedora-coreos/kubernetes?ref=v1.28.3"
+  source = "git::https://github.com/poseidon/typhoon//azure/fedora-coreos/kubernetes?ref=v1.31.3"
 
   # Azure
   cluster_name   = "ramius"
-  region         = "centralus"
+  location       = "centralus"
   dns_zone       = "azure.example.com"
   dns_zone_group = "example-group"
+  network_cidr   = {
+    ipv4 = ["10.0.0.0/20"]
+  }
+
+  # instances
+  os_image     = "/subscriptions/some/path/Microsoft.Compute/images/fedora-coreos-36.20220716.3.1"
+  worker_count = 2
 
   # configuration
-  os_image           = "/subscriptions/some/path/Microsoft.Compute/images/fedora-coreos-36.20220716.3.1"
   ssh_authorized_key = "ssh-ed25519 AAAAB3Nz..."
-
-  # optional
-  worker_count    = 2
-  host_cidr       = "10.0.0.0/20"
 }
 ```
 
@@ -150,8 +152,9 @@ In 4-8 minutes, the Kubernetes cluster will be ready.
 
 ```
 resource "local_file" "kubeconfig-ramius" {
-  content  = module.ramius.kubeconfig-admin
-  filename = "/home/user/.kube/configs/ramius-config"
+  content         = module.ramius.kubeconfig-admin
+  filename        = "/home/user/.kube/configs/ramius-config"
+  file_permission = "0600"
 }
 ```
 
@@ -161,9 +164,9 @@ List nodes in the cluster.
 $ export KUBECONFIG=/home/user/.kube/configs/ramius-config
 $ kubectl get nodes
 NAME                  STATUS  ROLES   AGE  VERSION
-ramius-controller-0   Ready   <none>  24m  v1.28.3
-ramius-worker-000001  Ready   <none>  25m  v1.28.3
-ramius-worker-000002  Ready   <none>  24m  v1.28.3
+ramius-controller-0   Ready   <none>  24m  v1.31.3
+ramius-worker-000001  Ready   <none>  25m  v1.31.3
+ramius-worker-000002  Ready   <none>  24m  v1.31.3
 ```
 
 List the pods.
@@ -173,9 +176,9 @@ $ kubectl get pods --all-namespaces
 NAMESPACE     NAME                                        READY  STATUS    RESTARTS  AGE
 kube-system   coredns-7c6fbb4f4b-b6qzx                    1/1    Running   0         26m
 kube-system   coredns-7c6fbb4f4b-j2k3d                    1/1    Running   0         26m
-kube-system   calico-node-1m5bf                           2/2    Running   0         26m
-kube-system   calico-node-7jmr1                           2/2    Running   0         26m
-kube-system   calico-node-bknc8                           2/2    Running   0         26m
+kube-system   cilium-1m5bf                                1/1    Running   0         26m
+kube-system   cilium-7jmr1                                1/1    Running   0         26m
+kube-system   cilium-bknc8                                1/1    Running   0         26m
 kube-system   kube-apiserver-ramius-controller-0          1/1    Running   0         26m
 kube-system   kube-controller-manager-ramius-controller-0 1/1    Running   0         26m
 kube-system   kube-proxy-j4vpq                            1/1    Running   0         26m
@@ -197,14 +200,14 @@ Check the [variables.tf](https://github.com/poseidon/typhoon/blob/master/azure/f
 | Name | Description | Example |
 |:-----|:------------|:--------|
 | cluster_name | Unique cluster name (prepended to dns_zone) | "ramius" |
-| region | Azure region | "centralus" |
+| location | Azure location | "centralus" |
 | dns_zone | Azure DNS zone | "azure.example.com" |
 | dns_zone_group | Resource group where the Azure DNS zone resides | "global" |
 | os_image | Fedora CoreOS image for instances | "/subscriptions/..../custom-image" |
 | ssh_authorized_key | SSH public key for user 'core' | "ssh-ed25519 AAAAB3NZ..." |
 
 !!! tip
-    Regions are shown in [docs](https://azure.microsoft.com/en-us/global-infrastructure/regions/) or with `az account list-locations --output table`.
+    Locations are shown in [docs](https://azure.microsoft.com/en-us/global-infrastructure/regions/) or with `az account list-locations --output table`.
 
 #### DNS Zone
 
@@ -238,23 +241,24 @@ Reference the DNS zone with `azurerm_dns_zone.clusters.name` and its resource gr
 | Name | Description | Default | Example |
 |:-----|:------------|:--------|:--------|
 | controller_count | Number of controllers (i.e. masters) | 1 | 1 |
-| worker_count | Number of workers | 1 | 3 |
 | controller_type | Machine type for controllers | "Standard_B2s" | See below |
+| controller_disk_type | Managed disk for controllers | Premium_LRS | Standard_LRS |
+| controller_disk_size | Managed disk size in GB      | 30 | 50 |
+| worker_count | Number of workers | 1 | 3 |
 | worker_type | Machine type for workers | "Standard_D2as_v5" | See below |
-| disk_size | Size of the disk in GB | 30 | 100 |
+| worker_disk_type | Managed disk for workers | Standard_LRS | Premium_LRS |
+| worker_disk_size | Size of the disk in GB | 30 | 100 |
+| worker_ephemeral_disk | Use ephemeral local disk instead of managed disk | false | true |
 | worker_priority | Set priority to Spot to use reduced cost surplus capacity, with the tradeoff that instances can be deallocated at any time | Regular | Spot |
 | controller_snippets | Controller Butane snippets | [] | [example](/advanced/customization/#usage) |
 | worker_snippets | Worker Butane snippets | [] | [example](/advanced/customization/#usage) |
 | networking | Choice of networking provider | "cilium" | "calico" or "cilium" or "flannel" |
-| host_cidr | CIDR IPv4 range to assign to instances | "10.0.0.0/16" | "10.0.0.0/20" |
+| network_cidr | Virtual network CIDR ranges | { ipv4 = ["10.0.0.0/16"], ipv6 = [ULA, ...] } | { ipv4 = ["10.0.0.0/20"] } |
 | pod_cidr | CIDR IPv4 range to assign to Kubernetes pods | "10.2.0.0/16" | "10.22.0.0/16" |
 | service_cidr | CIDR IPv4 range to assign to Kubernetes services | "10.3.0.0/16" | "10.3.0.0/24" |
 | worker_node_labels | List of initial worker node labels | [] | ["worker-pool=default"] |
 
 Check the list of valid [machine types](https://azure.microsoft.com/en-us/pricing/details/virtual-machines/linux/) and their [specs](https://docs.microsoft.com/en-us/azure/virtual-machines/linux/sizes-general). Use `az vm list-skus` to get the identifier.
-
-!!! warning
-    Unlike AWS and GCP, Azure requires its *virtual* networks to have non-overlapping IPv4 CIDRs (yeah, go figure). Instead of each cluster just using `10.0.0.0/16` for instances, each Azure cluster's `host_cidr` must be non-overlapping (e.g. 10.0.0.0/20 for the 1st cluster, 10.0.16.0/20 for the 2nd cluster, etc).
 
 !!! warning
     Do not choose a `controller_type` smaller than `Standard_B2s`. Smaller instances are not sufficient for running a controller.

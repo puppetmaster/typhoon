@@ -20,24 +20,32 @@ resource "aws_instance" "controllers" {
   tags = {
     Name = "${var.cluster_name}-controller-${count.index}"
   }
-
   instance_type = var.controller_type
-  ami           = var.arch == "arm64" ? data.aws_ami.fedora-coreos-arm[0].image_id : data.aws_ami.fedora-coreos.image_id
-  user_data     = data.ct_config.controllers.*.rendered[count.index]
+  ami           = var.controller_arch == "arm64" ? data.aws_ami.fedora-coreos-arm[0].image_id : data.aws_ami.fedora-coreos.image_id
 
   # storage
   root_block_device {
-    volume_type = var.disk_type
-    volume_size = var.disk_size
-    iops        = var.disk_iops
+    volume_type = var.controller_disk_type
+    volume_size = var.controller_disk_size
+    iops        = var.controller_disk_iops
     encrypted   = true
-    tags        = {}
+    tags = {
+      Name = "${var.cluster_name}-controller-${count.index}"
+    }
   }
 
   # network
   associate_public_ip_address = true
   subnet_id                   = element(aws_subnet.public.*.id, count.index)
   vpc_security_group_ids      = [aws_security_group.controller.id]
+
+  # boot
+  user_data = data.ct_config.controllers.*.rendered[count.index]
+
+  # cost
+  credit_specification {
+    cpu_credits = var.controller_cpu_credits
+  }
 
   lifecycle {
     ignore_changes = [
@@ -61,7 +69,6 @@ data "ct_config" "controllers" {
     kubeconfig             = indent(10, module.bootstrap.kubeconfig-kubelet)
     ssh_authorized_key     = var.ssh_authorized_key
     cluster_dns_service_ip = cidrhost(var.service_cidr, 10)
-    cluster_domain_suffix  = var.cluster_domain_suffix
   })
   strict   = true
   snippets = var.controller_snippets

@@ -1,10 +1,10 @@
 # DigitalOcean
 
-In this tutorial, we'll create a Kubernetes v1.28.3 cluster on DigitalOcean with Flatcar Linux.
+In this tutorial, we'll create a Kubernetes v1.31.3 cluster on DigitalOcean with Flatcar Linux.
 
 We'll declare a Kubernetes cluster using the Typhoon Terraform module. Then apply the changes to create controller droplets, worker droplets, DNS records, tags, and TLS assets.
 
-Controller hosts are provisioned to run an `etcd-member` peer and a `kubelet` service. Worker hosts run a `kubelet` service. Controller nodes run `kube-apiserver`, `kube-scheduler`, `kube-controller-manager`, and `coredns`, while `kube-proxy` and `calico` (or `flannel`) run on every node. A generated `kubeconfig` provides `kubectl` access to the cluster.
+Controller hosts are provisioned to run an `etcd-member` peer and a `kubelet` service. Worker hosts run a `kubelet` service. Controller nodes run `kube-apiserver`, `kube-scheduler`, `kube-controller-manager`, and `coredns`, while `kube-proxy` and (`flannel`, `calico`, or `cilium`) run on every node. A generated `kubeconfig` provides `kubectl` access to the cluster.
 
 ## Requirements
 
@@ -81,19 +81,19 @@ Define a Kubernetes cluster using the module `digital-ocean/flatcar-linux/kubern
 
 ```tf
 module "nemo" {
-  source = "git::https://github.com/poseidon/typhoon//digital-ocean/flatcar-linux/kubernetes?ref=v1.28.3"
+  source = "git::https://github.com/poseidon/typhoon//digital-ocean/flatcar-linux/kubernetes?ref=v1.31.3"
 
   # Digital Ocean
   cluster_name = "nemo"
   region       = "nyc3"
   dns_zone     = "digital-ocean.example.com"
 
-  # configuration
-  os_image         = data.digitalocean_image.flatcar-stable-2303-4-0.id
-  ssh_fingerprints = ["d7:9d:79:ae:56:32:73:79:95:88:e3:a2:ab:5d:45:e7"]
-
-  # optional
+  # instances
+  os_image     = data.digitalocean_image.flatcar-stable-2303-4-0.id
   worker_count = 2
+
+  # configuration
+  ssh_fingerprints = ["d7:9d:79:ae:56:32:73:79:95:88:e3:a2:ab:5d:45:e7"]
 }
 ```
 
@@ -144,8 +144,9 @@ In 3-6 minutes, the Kubernetes cluster will be ready.
 
 ```
 resource "local_file" "kubeconfig-nemo" {
-  content  = module.nemo.kubeconfig-admin
-  filename = "/home/user/.kube/configs/nemo-config"
+  content         = module.nemo.kubeconfig-admin
+  filename        = "/home/user/.kube/configs/nemo-config"
+  file_permission = "0600"
 }
 ```
 
@@ -155,9 +156,9 @@ List nodes in the cluster.
 $ export KUBECONFIG=/home/user/.kube/configs/nemo-config
 $ kubectl get nodes
 NAME               STATUS  ROLES   AGE  VERSION
-10.132.110.130     Ready   <none>  10m  v1.28.3
-10.132.115.81      Ready   <none>  10m  v1.28.3
-10.132.124.107     Ready   <none>  10m  v1.28.3
+10.132.110.130     Ready   <none>  10m  v1.31.3
+10.132.115.81      Ready   <none>  10m  v1.31.3
+10.132.124.107     Ready   <none>  10m  v1.31.3
 ```
 
 List the pods.
@@ -166,9 +167,9 @@ List the pods.
 NAMESPACE     NAME                                       READY     STATUS    RESTARTS   AGE
 kube-system   coredns-1187388186-ld1j7                   1/1       Running   0          11m
 kube-system   coredns-1187388186-rdhf7                   1/1       Running   0          11m
-kube-system   calico-node-1m5bf                          2/2       Running   0          11m
-kube-system   calico-node-7jmr1                          2/2       Running   0          11m
-kube-system   calico-node-bknc8                          2/2       Running   0          11m
+kube-system   cilium-1m5bf                               1/1       Running   0          11m
+kube-system   cilium-7jmr1                               1/1       Running   0          11m
+kube-system   cilium-bknc8                               1/1       Running   0          11m
 kube-system   kube-apiserver-ip-10.132.115.81            1/1       Running   0          11m
 kube-system   kube-controller-manager-ip-10.132.115.81   1/1       Running   0          11m
 kube-system   kube-proxy-6kxjf                           1/1       Running   0          11m

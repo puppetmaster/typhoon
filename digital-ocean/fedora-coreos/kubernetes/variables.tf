@@ -86,23 +86,20 @@ EOD
   default     = "10.3.0.0/16"
 }
 
-variable "enable_reporting" {
-  type        = bool
-  description = "Enable usage or analytics reporting to upstreams (Calico)"
-  default     = false
+# advanced
+
+variable "components" {
+  description = "Configure pre-installed cluster components"
+  # Component configs are passed through to terraform-render-bootstrap,
+  # which handles type enforcement and defines defaults
+  # https://github.com/poseidon/terraform-render-bootstrap/blob/main/variables.tf#L95
+  type = object({
+    enable     = optional(bool)
+    coredns    = optional(map(any))
+    kube_proxy = optional(map(any))
+    flannel    = optional(map(any))
+    calico     = optional(map(any))
+    cilium     = optional(map(any))
+  })
+  default = null
 }
-
-variable "enable_aggregation" {
-  type        = bool
-  description = "Enable the Kubernetes Aggregation Layer"
-  default     = true
-}
-
-# unofficial, undocumented, unsupported
-
-variable "cluster_domain_suffix" {
-  type        = string
-  description = "Queries for domains with the suffix will be answered by coredns. Default is cluster.local (e.g. foo.default.svc.cluster.local) "
-  default     = "cluster.local"
-}
-

@@ -31,8 +31,9 @@ resource "google_compute_instance" "controllers" {
 
   name = "${var.cluster_name}-controller-${count.index}"
   # use a zone in the region and wrap around (e.g. controllers > zones)
-  zone         = element(local.zones, count.index)
-  machine_type = var.controller_type
+  zone                      = element(local.zones, count.index)
+  machine_type              = var.controller_type
+  allow_stopping_for_update = true
 
   metadata = {
     user-data = data.ct_config.controllers.*.rendered[count.index]
@@ -43,7 +44,8 @@ resource "google_compute_instance" "controllers" {
 
     initialize_params {
       image = data.google_compute_image.flatcar-linux.self_link
-      size  = var.disk_size
+      size  = var.controller_disk_size
+      type  = var.controller_disk_type
     }
   }
 
@@ -80,7 +82,6 @@ data "ct_config" "controllers" {
     kubeconfig             = indent(10, module.bootstrap.kubeconfig-kubelet)
     ssh_authorized_key     = var.ssh_authorized_key
     cluster_dns_service_ip = cidrhost(var.service_cidr, 10)
-    cluster_domain_suffix  = var.cluster_domain_suffix
   })
   strict   = true
   snippets = var.controller_snippets

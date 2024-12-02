@@ -8,7 +8,7 @@ resource "google_compute_region_instance_group_manager" "workers" {
   region             = var.region
   version {
     name              = "default"
-    instance_template = google_compute_instance_template.worker.self_link
+    instance_template = google_compute_region_instance_template.worker.self_link
   }
 
   # Roll out MIG instance template changes by replacing instances.
@@ -58,10 +58,11 @@ resource "google_compute_health_check" "worker" {
 }
 
 # Worker instance template
-resource "google_compute_instance_template" "worker" {
+resource "google_compute_region_instance_template" "worker" {
   name_prefix  = "${var.name}-worker-"
   description  = "Worker Instance template"
   machine_type = var.machine_type
+  region       = var.region
 
   metadata = {
     user-data = data.ct_config.worker.rendered
@@ -80,6 +81,7 @@ resource "google_compute_instance_template" "worker" {
     boot         = true
     source_image = data.google_compute_image.flatcar-linux.self_link
     disk_size_gb = var.disk_size
+    disk_type    = var.disk_type
   }
 
   network_interface {
@@ -111,7 +113,6 @@ data "ct_config" "worker" {
     kubeconfig             = indent(10, var.kubeconfig)
     ssh_authorized_key     = var.ssh_authorized_key
     cluster_dns_service_ip = cidrhost(var.service_cidr, 10)
-    cluster_domain_suffix  = var.cluster_domain_suffix
     node_labels            = join(",", var.node_labels)
     node_taints            = join(",", var.node_taints)
   })

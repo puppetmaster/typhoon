@@ -1,10 +1,10 @@
 # Bare-Metal
 
-In this tutorial, we'll network boot and provision a Kubernetes v1.28.3 cluster on bare-metal with Fedora CoreOS.
+In this tutorial, we'll network boot and provision a Kubernetes v1.31.3 cluster on bare-metal with Fedora CoreOS.
 
 First, we'll deploy a [Matchbox](https://github.com/poseidon/matchbox) service and setup a network boot environment. Then, we'll declare a Kubernetes cluster using the Typhoon Terraform module and power on machines. On PXE boot, machines will install Fedora CoreOS to disk, reboot into the disk install, and provision themselves as Kubernetes controllers or workers via Ignition.
 
-Controller hosts are provisioned to run an `etcd-member` peer and a `kubelet` service. Worker hosts run a `kubelet` service. Controller nodes run `kube-apiserver`, `kube-scheduler`, `kube-controller-manager`, and `coredns`, while `kube-proxy` and `calico` (or `flannel`) run on every node. A generated `kubeconfig` provides `kubectl` access to the cluster.
+Controller hosts are provisioned to run an `etcd-member` peer and a `kubelet` service. Worker hosts run a `kubelet` service. Controller nodes run `kube-apiserver`, `kube-scheduler`, `kube-controller-manager`, and `coredns`, while `kube-proxy` and (`flannel`, `calico`, or `cilium`) run on every node. A generated `kubeconfig` provides `kubectl` access to the cluster.
 
 ## Requirements
 
@@ -154,7 +154,7 @@ Define a Kubernetes cluster using the module `bare-metal/fedora-coreos/kubernete
 
 ```tf
 module "mercury" {
-  source = "git::https://github.com/poseidon/typhoon//bare-metal/fedora-coreos/kubernetes?ref=v1.28.3"
+  source = "git::https://github.com/poseidon/typhoon//bare-metal/fedora-coreos/kubernetes?ref=v1.31.3"
 
   # bare-metal
   cluster_name            = "mercury"
@@ -191,7 +191,7 @@ Workers with similar features can be defined inline using the `workers` field as
 
 ```tf
 module "mercury-node1" {
-  source = "git::https://github.com/poseidon/typhoon//bare-metal/fedora-coreos/kubernetes/worker?ref=v1.28.3"
+  source = "git::https://github.com/poseidon/typhoon//bare-metal/fedora-coreos/kubernetes/worker?ref=v1.31.3"
 
   # bare-metal
   cluster_name = "mercury"
@@ -302,8 +302,9 @@ systemd[1]: Started Kubernetes control plane.
 
 ```
 resource "local_file" "kubeconfig-mercury" {
-  content  = module.mercury.kubeconfig-admin
-  filename = "/home/user/.kube/configs/mercury-config"
+  content         = module.mercury.kubeconfig-admin
+  filename        = "/home/user/.kube/configs/mercury-config"
+  file_permission = "0600"
 }
 ```
 
@@ -313,9 +314,9 @@ List nodes in the cluster.
 $ export KUBECONFIG=/home/user/.kube/configs/mercury-config
 $ kubectl get nodes
 NAME                STATUS  ROLES   AGE  VERSION
-node1.example.com   Ready   <none>  10m  v1.28.3
-node2.example.com   Ready   <none>  10m  v1.28.3
-node3.example.com   Ready   <none>  10m  v1.28.3
+node1.example.com   Ready   <none>  10m  v1.31.3
+node2.example.com   Ready   <none>  10m  v1.31.3
+node3.example.com   Ready   <none>  10m  v1.31.3
 ```
 
 List the pods.
@@ -323,9 +324,10 @@ List the pods.
 ```
 $ kubectl get pods --all-namespaces
 NAMESPACE     NAME                                       READY     STATUS    RESTARTS   AGE
-kube-system   calico-node-6qp7f                          2/2       Running   1          11m
-kube-system   calico-node-gnjrm                          2/2       Running   0          11m
-kube-system   calico-node-llbgt                          2/2       Running   0          11m
+kube-system   cilium-6qp7f                               1/1       Running   1          11m
+kube-system   cilium-gnjrm                               1/1       Running   0          11m
+kube-system   cilium-llbgt                               1/1       Running   0          11m
+kube-system   cilium-operator-68d778b448-g744f           1/1       Running   0          11m
 kube-system   coredns-1187388186-dj3pd                   1/1       Running   0          11m
 kube-system   coredns-1187388186-mx9rt                   1/1       Running   0          11m
 kube-system   kube-apiserver-node1.example.com           1/1       Running   0          11m
@@ -372,4 +374,3 @@ Check the [variables.tf](https://github.com/poseidon/typhoon/blob/master/bare-me
 | kernel_args | Additional kernel args to provide at PXE boot | [] | ["kvm-intel.nested=1"] |
 | worker_node_labels | Map from worker name to list of initial node labels | {} | {"node2" = ["role=special"]} |
 | worker_node_taints | Map from worker name to list of initial node taints | {} | {"node2" = ["role=special:NoSchedule"]} |
-

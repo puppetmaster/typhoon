@@ -1,10 +1,10 @@
 # AWS
 
-In this tutorial, we'll create a Kubernetes v1.28.3 cluster on AWS with Fedora CoreOS.
+In this tutorial, we'll create a Kubernetes v1.31.3 cluster on AWS with Fedora CoreOS.
 
 We'll declare a Kubernetes cluster using the Typhoon Terraform module. Then apply the changes to create a VPC, gateway, subnets, security groups, controller instances, worker auto-scaling group, network load balancer, and TLS assets.
 
-Controller hosts are provisioned to run an `etcd-member` peer and a `kubelet` service. Worker hosts run a `kubelet` service. Controller nodes run `kube-apiserver`, `kube-scheduler`, `kube-controller-manager`, and `coredns`, while `kube-proxy` and `calico` (or `flannel`) run on every node. A generated `kubeconfig` provides `kubectl` access to the cluster.
+Controller hosts are provisioned to run an `etcd-member` peer and a `kubelet` service. Worker hosts run a `kubelet` service. Controller nodes run `kube-apiserver`, `kube-scheduler`, `kube-controller-manager`, and `coredns`, while `kube-proxy` and (`flannel`, `calico`, or `cilium`) run on every node. A generated `kubeconfig` provides `kubectl` access to the cluster.
 
 ## Requirements
 
@@ -72,19 +72,19 @@ Define a Kubernetes cluster using the module `aws/fedora-coreos/kubernetes`.
 
 ```tf
 module "tempest" {
-  source = "git::https://github.com/poseidon/typhoon//aws/fedora-coreos/kubernetes?ref=v1.28.3"
+  source = "git::https://github.com/poseidon/typhoon//aws/fedora-coreos/kubernetes?ref=v1.31.3"
 
   # AWS
   cluster_name = "tempest"
   dns_zone     = "aws.example.com"
   dns_zone_id  = "Z3PAABBCFAKEC0"
 
-  # configuration
-  ssh_authorized_key = "ssh-ed25519 AAAAB3Nz..."
-
-  # optional
+  # instances
   worker_count = 2
   worker_type  = "t3.small"
+
+  # configuration
+  ssh_authorized_key = "ssh-ed25519 AAAAB3Nz..."
 }
 ```
 
@@ -134,8 +134,9 @@ In 4-8 minutes, the Kubernetes cluster will be ready.
 
 ```
 resource "local_file" "kubeconfig-tempest" {
-  content  = module.tempest.kubeconfig-admin
-  filename = "/home/user/.kube/configs/tempest-config"
+  content         = module.tempest.kubeconfig-admin
+  filename        = "/home/user/.kube/configs/tempest-config"
+  file_permission = "0600"
 }
 ```
 
@@ -145,9 +146,9 @@ List nodes in the cluster.
 $ export KUBECONFIG=/home/user/.kube/configs/tempest-config
 $ kubectl get nodes
 NAME           STATUS  ROLES    AGE  VERSION
-ip-10-0-3-155  Ready   <none>   10m  v1.28.3
-ip-10-0-26-65  Ready   <none>   10m  v1.28.3
-ip-10-0-41-21  Ready   <none>   10m  v1.28.3
+ip-10-0-3-155  Ready   <none>   10m  v1.31.3
+ip-10-0-26-65  Ready   <none>   10m  v1.31.3
+ip-10-0-41-21  Ready   <none>   10m  v1.31.3
 ```
 
 List the pods.
@@ -155,9 +156,9 @@ List the pods.
 ```
 $ kubectl get pods --all-namespaces
 NAMESPACE     NAME                                   READY  STATUS    RESTARTS  AGE
-kube-system   calico-node-1m5bf                      2/2    Running   0         34m
-kube-system   calico-node-7jmr1                      2/2    Running   0         34m
-kube-system   calico-node-bknc8                      2/2    Running   0         34m
+kube-system   cilium-1m5bf                           1/1    Running   0         34m
+kube-system   cilium-7jmr1                           1/1    Running   0         34m
+kube-system   cilium-bknc8                           1/1    Running   0         34m
 kube-system   coredns-1187388186-wx1lg               1/1    Running   0         34m
 kube-system   coredns-1187388186-qjnvp               1/1    Running   0         34m
 kube-system   kube-apiserver-ip-10-0-3-155           1/1    Running   0         34m
@@ -206,16 +207,21 @@ Reference the DNS zone id with `aws_route53_zone.zone-for-clusters.zone_id`.
 
 | Name | Description | Default | Example |
 |:-----|:------------|:--------|:--------|
+| os_stream | Fedora CoreOS stream for instances | "stable" | "testing", "next" |
 | controller_count | Number of controllers (i.e. masters) | 1 | 1 |
-| worker_count | Number of workers | 1 | 3 |
 | controller_type | EC2 instance type for controllers | "t3.small" | See below |
+| controller_disk_size | Size of EBS volume in GB | 30 | 100 |
+| controller_disk_type | Type of EBS volume | gp3 | io1 |
+| controller_disk_iops | IOPS of EBS volume | 3000 | 4000 |
+| controller_cpu_credits | Burstable CPU pricing model | null (i.e. auto) | standard, unlimited |
+| worker_count | Number of workers | 1 | 3 |
 | worker_type | EC2 instance type for workers | "t3.small" | See below |
-| os_stream | Fedora CoreOS stream for compute instances | "stable" | "testing", "next" |
-| disk_size | Size of the EBS volume in GB | 30 | 100 |
-| disk_type | Type of the EBS volume | "gp3" | standard, gp2, gp3, io1 |
-| disk_iops | IOPS of the EBS volume | 0 (i.e. auto) | 400 |
-| worker_target_groups | Target group ARNs to which worker instances should be added | [] | [aws_lb_target_group.app.id] |
+| worker_disk_size | Size of EBS volume in GB | 30 | 100 |
+| worker_disk_type | Type of EBS volume | gp3 | io1 |
+| worker_disk_iops | IOPS of EBS volume | 3000 | 4000 |
+| worker_cpu_credits | Burstable CPU pricing model | null (i.e. auto) | standard, unlimited |
 | worker_price | Spot price in USD for worker instances or 0 to use on-demand instances | 0 | 0.10 |
+| worker_target_groups | Target group ARNs to which worker instances should be added | [] | [aws_lb_target_group.app.id] |
 | controller_snippets | Controller Butane snippets | [] | [examples](/advanced/customization/) |
 | worker_snippets | Worker Butane snippets | [] | [examples](/advanced/customization/) |
 | networking | Choice of networking provider | "cilium" | "calico" or "cilium" or "flannel" |
@@ -228,7 +234,7 @@ Reference the DNS zone id with `aws_route53_zone.zone-for-clusters.zone_id`.
 Check the list of valid [instance types](https://aws.amazon.com/ec2/instance-types/).
 
 !!! warning
-    Do not choose a `controller_type` smaller than `t2.small`. Smaller instances are not sufficient for running a controller.
+    Do not choose a `controller_type` smaller than `t3.small`. Smaller instances are not sufficient for running a controller.
 
 !!! tip "MTU"
     If your EC2 instance type supports [Jumbo frames](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/network_mtu.html#jumbo_frame_instances) (most do), we recommend you change the `network_mtu` to 8981! You will get better pod-to-pod bandwidth.
@@ -236,4 +242,3 @@ Check the list of valid [instance types](https://aws.amazon.com/ec2/instance-typ
 #### Spot
 
 Add `worker_price = "0.10"` to use spot instance workers (instead of "on-demand") and set a maximum spot price in USD. Clusters can tolerate spot market interuptions fairly well (reschedules pods, but cannot drain) to save money, with the tradeoff that requests for workers may go unfulfilled.
-

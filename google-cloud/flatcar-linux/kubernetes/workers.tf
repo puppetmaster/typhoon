@@ -9,15 +9,14 @@ module "workers" {
   worker_count = var.worker_count
   machine_type = var.worker_type
   os_image     = var.os_image
-  disk_size    = var.disk_size
+  disk_size    = var.worker_disk_size
+  disk_type    = var.worker_disk_type
   preemptible  = var.worker_preemptible
 
   # configuration
-  kubeconfig            = module.bootstrap.kubeconfig-kubelet
-  ssh_authorized_key    = var.ssh_authorized_key
-  service_cidr          = var.service_cidr
-  cluster_domain_suffix = var.cluster_domain_suffix
-  snippets              = var.worker_snippets
-  node_labels           = var.worker_node_labels
+  kubeconfig         = module.bootstrap.kubeconfig-kubelet
+  ssh_authorized_key = var.ssh_authorized_key
+  service_cidr       = var.service_cidr
+  snippets           = var.worker_snippets
+  node_labels        = var.worker_node_labels
 }
-
